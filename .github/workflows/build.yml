@@ -26,6 +26,6 @@ jobs:
           push: true
           file: ./VRCAuthProxy/Dockerfile
           platforms: linux/amd64
-          tags: ghcr.io/pridevrcommunity/VRCAuthProxy:latest
+          tags: ghcr.io/pridevrcommunity/vrcauthprxoy:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
