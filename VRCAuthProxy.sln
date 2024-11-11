@@ -1,0 +1,16 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VRCAuthProxy", "VRCAuthProxy\VRCAuthProxy.csproj", "{BB549439-B34F-4BCA-B8FC-173114631646}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{BB549439-B34F-4BCA-B8FC-173114631646}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BB549439-B34F-4BCA-B8FC-173114631646}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BB549439-B34F-4BCA-B8FC-173114631646}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BB549439-B34F-4BCA-B8FC-173114631646}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
