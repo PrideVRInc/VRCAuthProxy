@@ -113,7 +113,6 @@ app.Use(async (context, next) =>
         };
 
         // Add common headers to request message
-        message.Headers.Add("User-Agent", UserAgent);
         message.Headers.Add("Cookie", account.GetCookieContainer().GetCookieHeader(new Uri("https://api.vrchat.cloud")));
 
         // Handle request body for methods that support content (POST, PUT, DELETE)
