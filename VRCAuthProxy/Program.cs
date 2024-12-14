@@ -1,18 +1,19 @@
 ﻿// See https://aka.ms/new-console-template for more information
 
+using System.Diagnostics;
+using System.Net;
+using System.Net.Http.Json;
 using System.Text;
+using System.Web;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using OtpNet;
 using VRCAuthProxy;
-using VRChat.API.Api;
-using VRChat.API.Client;
-using VRChat.API.Model;
+using VRCAuthProxy.types;
 using HttpMethod = System.Net.Http.HttpMethod;
+using User = VRCAuthProxy.types.User;
 
-var httpClient = new HttpClient();
-
-var apiAccounts = new List<ApiClientWithCookies>();
+var apiAccounts = new List<HttpClient>();
 
 
 
@@ -25,7 +26,6 @@ void RotateAccount()
 }
 
 
-String UserAgent = "VRCAuthProxy V1.0.0 (https://github.com/PrideVRCommunity/VRCAuthProxy)";
 
 var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
@@ -34,19 +34,31 @@ Config.Instance.Accounts.ForEach(async account =>
 {
     try
     {
+        var cookieContainer = new CookieContainer();
+        var handler = new HttpClientHandler
+        {
+            CookieContainer = cookieContainer
+        };
+        var httpClient = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://api.vrchat.cloud/api/1")
+            
+        };
+        httpClient.DefaultRequestHeaders.Add("User-Agent", "VRCAuthProxy V1.0.0 (https://github.com/PrideVRCommunity/VRCAuthProxy)");
+        
         Console.WriteLine($"Creating API for {account.username}");
-        // clone base config
-        var config = new Configuration();
-        config.UserAgent = UserAgent;
-        config.BasePath = "https://api.vrchat.cloud/api/1";
-        config.Username = account.username;
-        config.Password = account.password;
+        
+        string encodedUsername = HttpUtility.UrlEncode(account.username);
+        string encodedPassword = HttpUtility.UrlEncode(account.password);
 
-        // create api client
-        var api = new ApiClientWithCookies();
-        var authApi = new AuthenticationApi(api, api, config);
-        var authResp = authApi.GetCurrentUserWithHttpInfo();
-        if (authResp.RawContent.Contains("totp"))
+        // Create Basic auth string
+        string authString = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{encodedUsername}:{encodedPassword}"));
+
+        // Add basic auth header
+        var request = new HttpRequestMessage(HttpMethod.Get, "/api/1/auth/user");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", authString);
+        var authResp = await httpClient.SendAsync(request);
+        if ((await authResp.Content.ReadAsStringAsync()).Contains("totp"))
         {
             Console.WriteLine($"TOTP required for {account.username}");
             if (account.totpSecret == null)
@@ -64,8 +76,13 @@ Config.Instance.Accounts.ForEach(async account =>
                 return;
             }
 
-            var verifyRes = authApi.Verify2FA(new TwoFactorAuthCode(code));
-            if (verifyRes == null || verifyRes.Verified == false)
+            var verifyReq = new HttpRequestMessage(HttpMethod.Post, "/api/1/auth/twofactorauth/totp/verify");
+            // set content type
+            verifyReq.Content = new StringContent($"{{\"code\":\"{code}\"}}", Encoding.UTF8, "application/json");
+            var verifyResp = await httpClient.SendAsync(verifyReq);
+            var verifyRes = await verifyResp.Content.ReadFromJsonAsync<TotpVerifyResponse>();
+            
+            if (verifyRes.verified == false)
             {
                 Console.WriteLine($"Failed to verify TOTP for {account.username}");
                 return;
@@ -73,13 +90,13 @@ Config.Instance.Accounts.ForEach(async account =>
 
         }
 
-        var curUser = authApi.GetCurrentUser();
-        if (curUser == null) throw new Exception("Failed to get current user");
-        Console.WriteLine($"Logged in as {curUser.DisplayName}");
-        apiAccounts.Add(api);
-    } catch (ApiException e)
+        var curUserResp = await httpClient.GetAsync("/api/1/auth/user");
+        var curUser = await curUserResp.Content.ReadFromJsonAsync<User>();
+        Console.WriteLine($"Logged in as {curUser.displayName}");
+        apiAccounts.Add(httpClient);
+    } catch (HttpRequestException e)
     {
-        Console.WriteLine($"Failed to create API for {account.username}: {e.Message}, {e.ErrorCode}, {e}");
+        Console.WriteLine($"Failed to create API for {account.username}: {e.Message}, {e.StatusCode}, {e}");
     }
 });
 
@@ -102,8 +119,6 @@ app.Use(async (context, next) =>
         }
 
         var account = apiAccounts.First();
-        var requestOpts = new RequestOptions();
-        requestOpts.Operation = context.Request.Method;
         var path = context.Request.Path.ToString().Replace("/api/1", "") + context.Request.QueryString;
 
         var message = new HttpRequestMessage
@@ -111,9 +126,6 @@ app.Use(async (context, next) =>
             RequestUri = new Uri("https://api.vrchat.cloud/api/1" + path),
             Method = new HttpMethod(context.Request.Method)
         };
-
-        // Add common headers to request message
-        message.Headers.Add("Cookie", account.GetCookieContainer().GetCookieHeader(new Uri("https://api.vrchat.cloud")));
 
         // Handle request body for methods that support content (POST, PUT, DELETE)
         if (context.Request.ContentLength > 0 || context.Request.Headers.ContainsKey("Transfer-Encoding"))
@@ -149,7 +161,7 @@ app.Use(async (context, next) =>
         }
 
         // Send the request
-        var response = await httpClient.SendAsync(message, HttpCompletionOption.ResponseHeadersRead);
+        var response = await account.SendAsync(message, HttpCompletionOption.ResponseHeadersRead);
         
         // Copy response status code and headers
         context.Response.StatusCode = (int)response.StatusCode;
