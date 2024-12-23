@@ -3,6 +3,7 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
+using System.Net.WebSockets;
 using System.Text;
 using System.Web;
 using Microsoft.AspNetCore.Builder;
@@ -13,7 +14,9 @@ using VRCAuthProxy.types;
 using HttpMethod = System.Net.Http.HttpMethod;
 using User = VRCAuthProxy.types.User;
 
-var apiAccounts = new List<HttpClient>();
+string userAgent = "VRCAuthProxy V1.0.0 (https://github.com/PrideVRCommunity/VRCAuthProxy)";
+
+var apiAccounts = new List<HttpClientCookieContainer>();
 
 
 
@@ -29,6 +32,7 @@ void RotateAccount()
 
 var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
+app.UseWebSockets();
 
 Config.Instance.Accounts.ForEach(async account =>
 {
@@ -39,12 +43,12 @@ Config.Instance.Accounts.ForEach(async account =>
         {
             CookieContainer = cookieContainer
         };
-        var httpClient = new HttpClient(handler)
+        var httpClient = new HttpClientCookieContainer(handler)
         {
             BaseAddress = new Uri("https://api.vrchat.cloud/api/1")
             
         };
-        httpClient.DefaultRequestHeaders.Add("User-Agent", "VRCAuthProxy V1.0.0 (https://github.com/PrideVRCommunity/VRCAuthProxy)");
+        httpClient.DefaultRequestHeaders.Add("User-Agent", userAgent);
         
         Console.WriteLine($"Creating API for {account.username}");
         
@@ -106,6 +110,67 @@ app.MapGet("/rotate", () =>
     RotateAccount();
     return "Rotated account";
 });
+
+// Proxy the websocket
+app.Use(async (context, next) =>
+{    
+    if (context.WebSockets.IsWebSocketRequest)
+    {
+        // api returns with {"err":"no authToken"}
+        if (apiAccounts.Count == 0)
+        {
+            context.Response.StatusCode = 500;
+            await context.Response.WriteAsync("No accounts available");
+            return;
+        }
+
+        var account = apiAccounts.First();
+        var authCookie = account.CookieContainer.GetCookies(new Uri("https://api.vrchat.cloud"))["auth"]?.Value;
+        
+        if (string.IsNullOrEmpty(authCookie))
+        {
+            context.Response.StatusCode = 401;
+            await context.Response.WriteAsync("Authentication token not found");
+            return;
+        }
+
+        var clientWebSocket = await context.WebSockets.AcceptWebSocketAsync();
+        using (var serverWebSocket = new ClientWebSocket())
+        {
+            serverWebSocket.Options.Cookies = account.CookieContainer;
+            serverWebSocket.Options.SetRequestHeader("User-Agent", userAgent);
+            await serverWebSocket.ConnectAsync(new Uri($"wss://vrchat.com/?authToken={authCookie}"), CancellationToken.None);
+
+            var buffer = new byte[8192];
+            async Task ProxyData(WebSocket source, WebSocket target)
+            {
+                while (source.State == WebSocketState.Open && target.State == WebSocketState.Open)
+                {
+                    var result = await source.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                    if (result.MessageType == WebSocketMessageType.Close)
+                    {
+                        await target.CloseAsync(result.CloseStatus.Value, result.CloseStatusDescription, CancellationToken.None);
+                        break;
+                    }
+                    await target.SendAsync(new ArraySegment<byte>(buffer, 0, result.Count), result.MessageType, result.EndOfMessage, CancellationToken.None);
+                }
+            }
+
+            var proxyTasks = new[]
+            {
+                ProxyData(clientWebSocket, serverWebSocket),
+                ProxyData(serverWebSocket, clientWebSocket)
+            };
+
+            await Task.WhenAny(proxyTasks);
+        }
+    }
+    else
+    {
+        await next();
+    }
+});
+
 // Proxy all requests starting with /api/1 to the VRChat API
 app.Use(async (context, next) =>
 {
