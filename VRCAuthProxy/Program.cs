@@ -218,7 +218,7 @@ app.Use(async (context, next) =>
             // Add non-body headers to message.Headers for GET and other bodyless requests
             foreach (var header in context.Request.Headers)
             {
-                if (!message.Headers.Contains(header.Key) && header.Key != "Host")
+                if (header.Key != "Content-Length" && header.Key != "Content-Type" && header.Key != "Content-Disposition")
                 {
                     message.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
                 }
