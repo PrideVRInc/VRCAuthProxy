@@ -3,6 +3,7 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
+using System.Net.Security;
 using System.Net.WebSockets;
 using System.Text;
 using System.Web;
@@ -218,7 +219,7 @@ app.Use(async (context, next) =>
             // Add non-body headers to message.Headers for GET and other bodyless requests
             foreach (var header in context.Request.Headers)
             {
-                if (header.Key != "Content-Length" && header.Key != "Content-Type" && header.Key != "Content-Disposition")
+                if (header.Key != "Content-Length" && header.Key != "Content-Type" && header.Key != "Content-Disposition" && header.Key != "Host")
                 {
                     message.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
                 }
