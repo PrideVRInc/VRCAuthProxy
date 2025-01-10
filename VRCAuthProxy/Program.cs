@@ -186,7 +186,11 @@ app.Use(async (context, next) =>
         var account = apiAccounts.First();
         var path = context.Request.Path.ToString().Replace("/api/1", "") + context.Request.QueryString;
 
-        var message = new HttpRequestMessage(new HttpMethod(context.Request.Method), path);
+        var message = new HttpRequestMessage
+        {
+            RequestUri = new Uri("https://api.vrchat.cloud/api/1" + path),
+            Method = new HttpMethod(context.Request.Method)
+        };
 
         // Handle request body for methods that support content (POST, PUT, DELETE)
         if (context.Request.ContentLength > 0 || context.Request.Headers.ContainsKey("Transfer-Encoding"))
