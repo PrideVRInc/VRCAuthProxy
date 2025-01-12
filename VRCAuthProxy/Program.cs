@@ -24,9 +24,9 @@ var apiAccounts = new List<HttpClientCookieContainer>();
 // Push the first account to the end of the list
 void RotateAccount()
 {
-    var account = Config.Instance.Accounts.First();
-    Config.Instance.Accounts.Remove(account);
-    Config.Instance.Accounts.Add(account);
+    var account = apiAccounts.First();
+    apiAccounts.Remove(account);
+    apiAccounts.Add(account);
 }
 
 
@@ -172,12 +172,9 @@ app.Use(async (context, next) =>
     }
 });
 
-// Proxy all requests starting with /api/1 to the VRChat API
-app.Use(async (context, next) =>
+async Task DoRequest(HttpContext context, bool retriedAlready = false) 
 {
-    if (context.Request.Path.StartsWithSegments("/api/1"))
-    {
-        if (apiAccounts.Count == 0)
+    if (apiAccounts.Count == 0)
         {
             context.Response.StatusCode = 500;
             await context.Response.WriteAsync("No accounts available");
@@ -229,6 +226,20 @@ app.Use(async (context, next) =>
         // Send the request
         var response = await account.SendAsync(message, HttpCompletionOption.ResponseHeadersRead);
         
+        if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.TooManyRequests)
+        {
+            if (retriedAlready)
+            {
+                context.Response.StatusCode = 500;
+                Console.Error.WriteLine($"Failed to authenticate: {response.StatusCode}");
+                await context.Response.WriteAsync("Failed to authenticate");
+                return;
+            }
+            Console.Error.WriteLine($"Retrying request due to {response.StatusCode}");
+            RotateAccount();
+            await DoRequest(context, true);
+            return;
+        }
         // Copy response status code and headers
         context.Response.StatusCode = (int)response.StatusCode;
         foreach (var header in response.Headers)
@@ -249,6 +260,14 @@ app.Use(async (context, next) =>
             memoryStream.Position = 0;
             await memoryStream.CopyToAsync(context.Response.Body);
         }
+}
+
+// Proxy all requests starting with /api/1 to the VRChat API
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/api/1"))
+    {
+        await DoRequest(context);
     }
     else
     {
