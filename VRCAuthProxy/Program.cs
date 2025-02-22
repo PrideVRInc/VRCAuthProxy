@@ -35,75 +35,80 @@ var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
 app.UseWebSockets();
 
-Config.Instance.Accounts.ForEach(async account =>
+void LogInAllAccounts()
 {
-    try
+    Config.Instance.Accounts.ForEach(async account =>
     {
-        var cookieContainer = new CookieContainer();
-        var handler = new HttpClientHandler
+        try
         {
-            CookieContainer = cookieContainer
-        };
-        var httpClient = new HttpClientCookieContainer(handler)
-        {
-            BaseAddress = new Uri("https://api.vrchat.cloud/api/1")
-            
-        };
-        httpClient.DefaultRequestHeaders.Add("User-Agent", userAgent);
-        
-        Console.WriteLine($"Creating API for {account.username}");
-        
-        string encodedUsername = HttpUtility.UrlEncode(account.username);
-        string encodedPassword = HttpUtility.UrlEncode(account.password);
-
-        // Create Basic auth string
-        string authString = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{encodedUsername}:{encodedPassword}"));
-
-        // Add basic auth header
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/1/auth/user");
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", authString);
-        var authResp = await httpClient.SendAsync(request);
-        if ((await authResp.Content.ReadAsStringAsync()).Contains("totp"))
-        {
-            Console.WriteLine($"TOTP required for {account.username}");
-            if (account.totpSecret == null)
+            var cookieContainer = new CookieContainer();
+            var handler = new HttpClientHandler
             {
-                Console.WriteLine($"No TOTP secret found for {account.username}");
-                return;
+                CookieContainer = cookieContainer
+            };
+            var httpClient = new HttpClientCookieContainer(handler)
+            {
+                BaseAddress = new Uri("https://api.vrchat.cloud/api/1")
+
+            };
+            httpClient.DefaultRequestHeaders.Add("User-Agent", userAgent);
+
+            Console.WriteLine($"Creating API for {account.username}");
+
+            string encodedUsername = HttpUtility.UrlEncode(account.username);
+            string encodedPassword = HttpUtility.UrlEncode(account.password);
+
+            // Create Basic auth string
+            string authString = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{encodedUsername}:{encodedPassword}"));
+
+            // Add basic auth header
+            var request = new HttpRequestMessage(HttpMethod.Get, "/api/1/auth/user");
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", authString);
+            var authResp = await httpClient.SendAsync(request);
+            if ((await authResp.Content.ReadAsStringAsync()).Contains("totp"))
+            {
+                Console.WriteLine($"TOTP required for {account.username}");
+                if (account.totpSecret == null)
+                {
+                    Console.WriteLine($"No TOTP secret found for {account.username}");
+                    return;
+                }
+
+                // totp constructor needs a byte array decoded from the base32 secret
+                var totp = new Totp(Base32Encoding.ToBytes(account.totpSecret.Replace(" ", "")));
+                var code = totp.ComputeTotp();
+                if (code == null)
+                {
+                    Console.WriteLine($"Failed to generate TOTP for {account.username}");
+                    return;
+                }
+
+                var verifyReq = new HttpRequestMessage(HttpMethod.Post, "/api/1/auth/twofactorauth/totp/verify");
+                // set content type
+                verifyReq.Content = new StringContent($"{{\"code\":\"{code}\"}}", Encoding.UTF8, "application/json");
+                var verifyResp = await httpClient.SendAsync(verifyReq);
+                var verifyRes = await verifyResp.Content.ReadFromJsonAsync<TotpVerifyResponse>();
+
+                if (verifyRes.verified == false)
+                {
+                    Console.WriteLine($"Failed to verify TOTP for {account.username}");
+                    return;
+                }
+
             }
 
-            // totp constructor needs a byte array decoded from the base32 secret
-            var totp = new Totp(Base32Encoding.ToBytes(account.totpSecret.Replace(" ", "")));
-            var code = totp.ComputeTotp();
-            if (code == null)
-            {
-                Console.WriteLine($"Failed to generate TOTP for {account.username}");
-                return;
-            }
-
-            var verifyReq = new HttpRequestMessage(HttpMethod.Post, "/api/1/auth/twofactorauth/totp/verify");
-            // set content type
-            verifyReq.Content = new StringContent($"{{\"code\":\"{code}\"}}", Encoding.UTF8, "application/json");
-            var verifyResp = await httpClient.SendAsync(verifyReq);
-            var verifyRes = await verifyResp.Content.ReadFromJsonAsync<TotpVerifyResponse>();
-            
-            if (verifyRes.verified == false)
-            {
-                Console.WriteLine($"Failed to verify TOTP for {account.username}");
-                return;
-            }
-
+            var curUserResp = await httpClient.GetAsync("/api/1/auth/user");
+            var curUser = await curUserResp.Content.ReadFromJsonAsync<User>();
+            Console.WriteLine($"Logged in as {curUser.displayName}");
+            apiAccounts.Add(httpClient);
         }
-
-        var curUserResp = await httpClient.GetAsync("/api/1/auth/user");
-        var curUser = await curUserResp.Content.ReadFromJsonAsync<User>();
-        Console.WriteLine($"Logged in as {curUser.displayName}");
-        apiAccounts.Add(httpClient);
-    } catch (HttpRequestException e)
-    {
-        Console.WriteLine($"Failed to create API for {account.username}: {e.Message}, {e.StatusCode}, {e}");
-    }
-});
+        catch (HttpRequestException e)
+        {
+            Console.WriteLine($"Failed to create API for {account.username}: {e.Message}, {e.StatusCode}, {e}");
+        }
+    });
+}
+LogInAllAccounts();
 
 app.MapGet("/", () => $"Logged in with {apiAccounts.Count} accounts");
 app.MapGet("/rotate", () =>
@@ -172,7 +177,7 @@ app.Use(async (context, next) =>
     }
 });
 
-async Task DoRequest(HttpContext context, bool retriedAlready = false) 
+async Task DoRequest(HttpContext context, bool retriedAlready = false, bool reAuthedAlready = false) 
 {
     if (apiAccounts.Count == 0)
         {
@@ -230,9 +235,16 @@ async Task DoRequest(HttpContext context, bool retriedAlready = false)
         {
             if (retriedAlready)
             {
-                context.Response.StatusCode = 500;
-                Console.Error.WriteLine($"Failed to authenticate: {response.StatusCode}");
-                await context.Response.WriteAsync("Failed to authenticate");
+                if (reAuthedAlready)
+                {
+                    Console.Error.WriteLine($"Failed to re-authenticate all accounts");
+                    context.Response.StatusCode = 500;
+                    await context.Response.WriteAsync("Failed to re-authenticate all accounts");
+                    return;
+                }
+                // re-login all accounts and try again
+                LogInAllAccounts();
+                await DoRequest(context, true, true);
                 return;
             }
             Console.Error.WriteLine($"Retrying request due to {response.StatusCode}");
