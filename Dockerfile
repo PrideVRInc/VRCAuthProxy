@@ -16,6 +16,8 @@ ARG BUILD_CONFIGURATION=Release
 RUN dotnet publish "VRCAuthProxy.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
+RUN apt update && \
+    apt install -y curl
 WORKDIR /app
 COPY --from=publish /app/publish .
 ENTRYPOINT ["dotnet", "VRCAuthProxy.dll"]
