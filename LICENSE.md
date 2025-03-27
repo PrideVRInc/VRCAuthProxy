@@ -83,3 +83,4 @@ You may add additional accurate notices of copyright ownership.
 
 # Addendum to MPL 2.0 License Aggrement
 **1.** Follow VRChat [Terms of Service](https://hello.vrchat.com/legal) and [Creator Guidelines](https://hello.vrchat.com/creator-guidelines#:~:text=or%20suggestive%20content.-,API%20Usage%20/%20Bots) when using this software with the VRChat API.
+**2.** You are resonsible for any use of this software that results in VRChat Trust & Safety actioning you. You release PrideVR, INC, and any of their volunteers, of any and all liability.

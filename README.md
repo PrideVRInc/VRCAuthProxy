@@ -53,6 +53,10 @@ services:
 ## LICENSE
 MPL-2.0 with Addendum
 
+## Upcoming Features
+1. Environment variable configuration
+2. Memcache / Redis authorization state session storage
+3. 
 
 © 2025 [PrideVR, INC](https://pridevr.org)
 A VR Pride Organization
