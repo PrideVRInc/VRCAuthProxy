@@ -32,17 +32,16 @@ appsettings.json
 
 ## Running
 docker run
-`docker run ?`
+`docker run -v ./authproxy.json:/app/appsettings.json -d pridevr/vrcauthproxy:1`
 
 docker compose 
 ```
 services:
   authproxy:
-    image: ghcr.io/pridevrinc/vrcauthproxy:latest
-    networks:
-      - authproxy
+    image: pridevr/vrcauthproxy:1
+    restart: unless-stopped
     volumes:
-      - "./authproxy.json:/app/appsettings.json"
+      - ./authproxy.json:/app/appsettings.json
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8080/ || exit 1"]
       interval: 30s
@@ -50,8 +49,8 @@ services:
       timeout: 10s
 ```
 
-## LICENSE 
-MPL-2.0
+## LICENSE
+MPL-2.0 with Addendum
 
 
 © 2025 [PrideVR, INC](https://pridevr.org)
