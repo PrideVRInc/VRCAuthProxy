@@ -33,6 +33,11 @@ public class Config
     {
         var config = new Config();
         var configPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+
+        var usernameEnv = Environment.GetEnvironmentVariable("VRCAUTHPROXY_USERNAME");
+        var passwordEnv = Environment.GetEnvironmentVariable("VRCAUTHPROXY_PASSWORD");
+        var totpSecreEnv = Environment.GetEnvironmentVariable("VRCAUTHPROXY_TOTP");
+        // Console.WriteLine("Username::" + usernameEnv);
         if (File.Exists(configPath))
         {
             var json = File.ReadAllText(configPath);
@@ -40,6 +45,15 @@ public class Config
             var iConfig = JsonSerializer.Deserialize<iConfig>(json);
             if (iConfig == null) throw new Exception("Failed to load config");
             config.Accounts = iConfig.accounts;
+        }
+        else if ( !string.IsNullOrEmpty(usernameEnv) && !string.IsNullOrEmpty(passwordEnv) && !string.IsNullOrEmpty(totpSecreEnv))
+        {
+            var iAccount = new ConfigAccount();
+            iAccount.username = usernameEnv;
+            iAccount.password = passwordEnv;
+            iAccount.totpSecret = totpSecreEnv;
+            
+            config.Accounts.Add(iAccount);
         }
         else
         {
