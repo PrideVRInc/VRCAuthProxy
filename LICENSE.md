@@ -78,3 +78,8 @@ If it is not possible or desirable to put the notice in a particular file, then 
 You may add additional accurate notices of copyright ownership.
 
 **Exhibit B** - “Incompatible With Secondary Licenses” Notice This Source Code Form is “Incompatible With Secondary Licenses”, as defined by the Mozilla Public License, v. 2.0.
+
+
+
+# Addendum to MPL 2.0 License Aggrement
+**1.** Follow VRChat [Terms of Service](https://hello.vrchat.com/legal) and [Creator Guidelines](https://hello.vrchat.com/creator-guidelines#:~:text=or%20suggestive%20content.-,API%20Usage%20/%20Bots) when using this software with the VRChat API.
