@@ -1,7 +1,7 @@
 # VRCAuthProxy
 #### A VRChat API Authorization Proxy Service
 
-This Authorization Proxy service are for those who consume the VRChat API in a multi-application / microservice architecture. Configure the Proxy with the credentials for an account you use to make API calls, then point your API clients to the Proxy service instead of the VRChat API.
+This authorization proxy service is for consuming the VRChat API in a multi-application / microservice architecture. Configure the proxy with the credentials for accounts you use to make API calls and direct your API clients to the proxy service instead of the VRChat API. The proxy server will handle the authorization call flow and caching of the authorization tokens for subsequent authorized calls.
 
 ## Build Steps
 C# Binary Builds
@@ -48,6 +48,7 @@ services:
       retries: 5
       timeout: 10s
 ```
+
 
 ## LICENSE
 MPL-2.0 with Addendum
