@@ -58,5 +58,10 @@ MPL-2.0 with Addendum
 2. Memcache / Redis authorization state session storage
 3. 
 
+## Contributors
+[![Contributors](https://contrib.rocks/image?repo=PrideVRInc/VRCAuthProxy)](https://github.com/PrideVRInc/VRCAuthProxy/graphs/contributors)
+Contributors list made with [contrib.rocks](https://contrib.rocks).
+
+
 © 2025 [PrideVR, INC](https://pridevr.org)
 A VR Pride Organization
