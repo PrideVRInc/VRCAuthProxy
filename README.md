@@ -60,6 +60,7 @@ MPL-2.0 with Addendum
 
 ## Contributors
 [![Contributors](https://contrib.rocks/image?repo=PrideVRInc/VRCAuthProxy)](https://github.com/PrideVRInc/VRCAuthProxy/graphs/contributors)
+
 Contributors list made with [contrib.rocks](https://contrib.rocks).
 
 
