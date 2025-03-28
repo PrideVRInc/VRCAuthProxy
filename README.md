@@ -65,4 +65,5 @@ Contributors list made with [contrib.rocks](https://contrib.rocks).
 
 
 © 2025 [PrideVR, INC](https://pridevr.org)
+
 A VR Pride Organization
